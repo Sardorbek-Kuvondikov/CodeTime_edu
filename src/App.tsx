@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  UserPlus,
   UsersRound,
   X,
   Zap,
@@ -73,6 +74,21 @@ type TeacherSession = {
   name: string;
   createdAt: number;
 };
+
+type StudentFieldType = "text" | "number" | "select" | "date";
+
+const studentFormFields: Array<[keyof CoinStudent, string, StudentFieldType]> =
+  [
+    ["firstName", "Ism", "text"],
+    ["lastName", "Familiya", "text"],
+    ["age", "Yosh", "number"],
+    ["phone", "Telefon", "text"],
+    ["direction", "Yo'nalish", "select"],
+    ["level", "Level", "select"],
+    ["joinedAt", "Qabul qilingan", "date"],
+    ["coins", "Coin ball", "number"],
+    ["progress", "Progress", "number"],
+  ];
 
 function TelegramIcon({ size = 20 }: { size?: number }) {
   return (
@@ -206,6 +222,13 @@ const results = [
 
 const STUDENTS_STORAGE_KEY = "codetime_coin_students";
 const AUTH_SESSION_STORAGE_KEY = "codetime_teacher_session";
+const directionOptions = [
+  "Web dasturlash",
+  "IT Kids",
+  "Robototexnika",
+  "Kiberxavfsizlik",
+];
+const levelOptions = ["Starter", "Bronze", "Silver", "Gold", "Platinum"];
 
 const teacherCredentials: TeacherCredential[] = [
   {
@@ -269,6 +292,75 @@ function clearTeacherSession() {
   window.sessionStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
 }
 
+function getCurrentJoinedAt() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getDateInputValue(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const yearMatch = value.match(/\d{4}/);
+
+  return yearMatch ? `${yearMatch[0]}-01-01` : getCurrentJoinedAt();
+}
+
+function createEmptyStudent(): CoinStudent {
+  return {
+    id: "",
+    firstName: "",
+    lastName: "",
+    age: 10,
+    phone: "",
+    direction: "Web dasturlash",
+    coins: 0,
+    level: "Starter",
+    progress: 0,
+    joinedAt: getCurrentJoinedAt(),
+  };
+}
+
+function createStudentId(student: CoinStudent, existingStudents: CoinStudent[]) {
+  const baseId =
+    `${student.firstName}-${student.lastName}`
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "student";
+  let nextId = baseId;
+  let index = 2;
+
+  while (existingStudents.some((existingStudent) => existingStudent.id === nextId)) {
+    nextId = `${baseId}-${index}`;
+    index += 1;
+  }
+
+  return nextId;
+}
+
+function normalizeStudent(student: CoinStudent): CoinStudent {
+  const normalizedDirection = directionOptions.includes(student.direction)
+    ? student.direction
+    : directionOptions[0];
+  const normalizedLevel = levelOptions.includes(student.level)
+    ? student.level
+    : levelOptions[0];
+
+  return {
+    ...student,
+    firstName: student.firstName.trim(),
+    lastName: student.lastName.trim(),
+    phone: student.phone.trim(),
+    direction: normalizedDirection,
+    level: normalizedLevel,
+    joinedAt: getDateInputValue(student.joinedAt.trim()),
+    age: Math.max(1, Number(student.age) || 1),
+    coins: Math.max(0, Number(student.coins) || 0),
+    progress: Math.min(100, Math.max(0, Number(student.progress) || 0)),
+  };
+}
+
 const coinStudents: CoinStudent[] = [
   {
     id: "azizbek-karimov",
@@ -280,7 +372,7 @@ const coinStudents: CoinStudent[] = [
     coins: 1280,
     level: "Gold",
     progress: 86,
-    joinedAt: "2026-yil yanvar",
+    joinedAt: "2026-01-10",
   },
   {
     id: "jasurbek-rasulov",
@@ -292,7 +384,7 @@ const coinStudents: CoinStudent[] = [
     coins: 1110,
     level: "Gold",
     progress: 81,
-    joinedAt: "2026-yil fevral",
+    joinedAt: "2026-02-12",
   },
   {
     id: "madina-tursunova",
@@ -304,7 +396,7 @@ const coinStudents: CoinStudent[] = [
     coins: 1045,
     level: "Silver",
     progress: 74,
-    joinedAt: "2026-yil yanvar",
+    joinedAt: "2026-01-18",
   },
   {
     id: "imrona-qodirova",
@@ -316,7 +408,7 @@ const coinStudents: CoinStudent[] = [
     coins: 940,
     level: "Silver",
     progress: 69,
-    joinedAt: "2026-yil mart",
+    joinedAt: "2026-03-08",
   },
   {
     id: "javohir-sobirov",
@@ -328,7 +420,7 @@ const coinStudents: CoinStudent[] = [
     coins: 920,
     level: "Silver",
     progress: 68,
-    joinedAt: "2026-yil fevral",
+    joinedAt: "2026-02-21",
   },
   {
     id: "sardor-olimov",
@@ -340,7 +432,7 @@ const coinStudents: CoinStudent[] = [
     coins: 870,
     level: "Silver",
     progress: 63,
-    joinedAt: "2026-yil aprel",
+    joinedAt: "2026-04-05",
   },
   {
     id: "diyorbek-hakimov",
@@ -352,7 +444,7 @@ const coinStudents: CoinStudent[] = [
     coins: 830,
     level: "Bronze",
     progress: 61,
-    joinedAt: "2026-yil mart",
+    joinedAt: "2026-03-16",
   },
   {
     id: "sevinch-akmalova",
@@ -364,7 +456,7 @@ const coinStudents: CoinStudent[] = [
     coins: 760,
     level: "Bronze",
     progress: 55,
-    joinedAt: "2026-yil yanvar",
+    joinedAt: "2026-01-25",
   },
   {
     id: "muhammadali-ergashev",
@@ -376,7 +468,7 @@ const coinStudents: CoinStudent[] = [
     coins: 690,
     level: "Bronze",
     progress: 48,
-    joinedAt: "2026-yil aprel",
+    joinedAt: "2026-04-13",
   },
   {
     id: "malika-nurmatova",
@@ -388,7 +480,7 @@ const coinStudents: CoinStudent[] = [
     coins: 620,
     level: "Starter",
     progress: 42,
-    joinedAt: "2026-yil may",
+    joinedAt: "2026-05-09",
   },
 ];
 
@@ -1213,6 +1305,64 @@ function LoginPage({
   );
 }
 
+function StudentFormControl({
+  field,
+  inputType,
+  value,
+  onChange,
+}: {
+  field: keyof CoinStudent;
+  inputType: StudentFieldType;
+  value: string | number;
+  onChange: (value: string | number) => void;
+}) {
+  const baseClassName =
+    "h-11 w-full rounded-xl border border-white/10 bg-[#0f1116] px-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-300/45 focus:ring-4 focus:ring-amber-300/10";
+
+  if (field === "direction" || field === "level") {
+    const options = field === "direction" ? directionOptions : levelOptions;
+
+    return (
+      <div className="relative">
+        <select
+          className={`${baseClassName} cursor-pointer appearance-none pr-11 font-semibold text-zinc-100 hover:border-white/20 hover:bg-[#141820]`}
+          value={String(value)}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {options.map((option) => (
+            <option key={option} value={option} className="bg-[#111318] text-white">
+              {option}
+            </option>
+          ))}
+        </select>
+        <span className="pointer-events-none absolute right-3 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-lg bg-white/[0.05] text-amber-200">
+          <ChevronDown size={16} />
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <input
+      className={baseClassName}
+      min={inputType === "number" ? 0 : undefined}
+      max={field === "progress" ? 100 : undefined}
+      placeholder={field === "phone" ? "+998 90 123 45 67" : undefined}
+      type={inputType === "date" ? "date" : inputType}
+      value={
+        inputType === "date" ? getDateInputValue(String(value)) : value
+      }
+      onChange={(event) =>
+        onChange(
+          inputType === "number"
+            ? Number(event.target.value)
+            : event.target.value,
+        )
+      }
+    />
+  );
+}
+
 function CoinsPage({
   role,
   teacherName,
@@ -1244,6 +1394,11 @@ function CoinsPage({
   const [editingStudent, setEditingStudent] = useState<CoinStudent | null>(
     null,
   );
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [newStudent, setNewStudent] = useState<CoinStudent>(() =>
+    createEmptyStudent(),
+  );
+  const [addStudentError, setAddStudentError] = useState("");
   const isTeacher = role === "teacher";
   const rankedStudents = [...students].sort(
     (studentA, studentB) => studentB.coins - studentA.coins,
@@ -1253,8 +1408,31 @@ function CoinsPage({
       .toLowerCase()
       .includes(searchValue.trim().toLowerCase()),
   );
+  const studentGroups = directionOptions.map((direction) => {
+    const directionStudents = filteredStudents.filter(
+      (student) => student.direction === direction,
+    );
+    const directionCoins = directionStudents.reduce(
+      (sum, student) => sum + student.coins,
+      0,
+    );
+
+    return {
+      direction,
+      students: directionStudents,
+      totalCoins: directionCoins,
+      averageProgress: directionStudents.length
+        ? Math.round(
+            directionStudents.reduce(
+              (sum, student) => sum + student.progress,
+              0,
+            ) / directionStudents.length,
+          )
+        : 0,
+    };
+  });
   const totalCoins = students.reduce((sum, student) => sum + student.coins, 0);
-  const averageCoins = Math.round(totalCoins / students.length);
+  const averageCoins = students.length ? Math.round(totalCoins / students.length) : 0;
   const directionsCount = new Set(students.map((student) => student.direction))
     .size;
 
@@ -1263,15 +1441,7 @@ function CoinsPage({
       return;
     }
 
-    const normalizedStudent: CoinStudent = {
-      ...editingStudent,
-      age: Math.max(1, Number(editingStudent.age) || 1),
-      coins: Math.max(0, Number(editingStudent.coins) || 0),
-      progress: Math.min(
-        100,
-        Math.max(0, Number(editingStudent.progress) || 0),
-      ),
-    };
+    const normalizedStudent = normalizeStudent(editingStudent);
     const updatedStudents = students.map((student) =>
       student.id === normalizedStudent.id ? normalizedStudent : student,
     );
@@ -1283,6 +1453,53 @@ function CoinsPage({
     );
     setSelectedStudent(normalizedStudent);
     setEditingStudent(null);
+  }
+
+  function handleOpenAddStudent() {
+    if (!isTeacher) {
+      return;
+    }
+
+    setNewStudent(createEmptyStudent());
+    setAddStudentError("");
+    setIsAddStudentOpen(true);
+  }
+
+  function handleAddStudent() {
+    if (!isTeacher) {
+      return;
+    }
+
+    const normalizedStudent = normalizeStudent({
+      ...newStudent,
+      id: createStudentId(newStudent, students),
+    });
+
+    if (
+      !normalizedStudent.firstName ||
+      !normalizedStudent.lastName ||
+      !normalizedStudent.phone ||
+      !normalizedStudent.direction
+    ) {
+      setAddStudentError(
+        "Ism, familiya, telefon va yo'nalish maydonlarini to'ldiring.",
+      );
+      return;
+    }
+
+    const updatedStudents = [...students, normalizedStudent];
+
+    setStudents(updatedStudents);
+    window.localStorage.setItem(
+      STUDENTS_STORAGE_KEY,
+      JSON.stringify(updatedStudents),
+    );
+    setSearchValue("");
+    setSelectedStudent(normalizedStudent);
+    setEditingStudent(null);
+    setIsAddStudentOpen(false);
+    setNewStudent(createEmptyStudent());
+    setAddStudentError("");
   }
 
   return (
@@ -1301,14 +1518,24 @@ function CoinsPage({
               Bosh sahifa
             </a>
             {isTeacher ? (
-              <button
-                className="inline-flex h-11 items-center gap-2 rounded-lg border border-red-300/20 bg-red-400/10 px-4 text-sm font-bold text-red-100 transition hover:bg-red-400/15"
-                type="button"
-                onClick={onLogout}
-              >
-                <LogOut size={18} />
-                Chiqish
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-[#c6f24e]/20 bg-[#c6f24e]/10 px-4 text-sm font-bold text-[#c6f24e] transition hover:bg-[#c6f24e]/15"
+                  type="button"
+                  onClick={handleOpenAddStudent}
+                >
+                  <UserPlus size={18} />
+                  O'quvchi qo'shish
+                </button>
+                <button
+                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-red-300/20 bg-red-400/10 px-4 text-sm font-bold text-red-100 transition hover:bg-red-400/15"
+                  type="button"
+                  onClick={onLogout}
+                >
+                  <LogOut size={18} />
+                  Chiqish
+                </button>
+              </div>
             ) : (
               <button
                 className="inline-flex h-11 items-center gap-2 rounded-lg border border-[#c6f24e]/20 bg-[#c6f24e]/10 px-4 text-sm font-bold text-[#c6f24e] transition hover:bg-[#c6f24e]/15"
@@ -1414,6 +1641,122 @@ function CoinsPage({
             </div>
           </div>
 
+          {isTeacher ? (
+            <div className="mt-6 grid gap-5 xl:grid-cols-2">
+              {studentGroups.map((group) => (
+                <article
+                  key={group.direction}
+                  className="overflow-hidden rounded-2xl border border-white/10 bg-[#15171d]"
+                >
+                  <div className="relative overflow-hidden border-b border-white/10 p-5">
+                    <CoinWatermark className="pointer-events-none absolute -right-10 -top-14 size-44 text-amber-200 opacity-[0.05]" />
+                    <div className="relative flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <span className="text-xs font-black uppercase text-amber-200">
+                          Yo'nalish
+                        </span>
+                        <h2 className="mt-2 text-2xl font-black text-white">
+                          {group.direction}
+                        </h2>
+                      </div>
+                      <span className="rounded-full border border-[#c6f24e]/20 bg-[#c6f24e]/10 px-3 py-1 text-sm font-black text-[#c6f24e]">
+                        {group.students.length} o'quvchi
+                      </span>
+                    </div>
+
+                    <div className="relative mt-5 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                        <span className="text-xs font-bold uppercase text-zinc-500">
+                          Jami coin
+                        </span>
+                        <strong className="mt-1 block text-xl font-black text-amber-200">
+                          {group.totalCoins.toLocaleString("en-US")}
+                        </strong>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                        <span className="text-xs font-bold uppercase text-zinc-500">
+                          O'rtacha progress
+                        </span>
+                        <strong className="mt-1 block text-xl font-black text-white">
+                          {group.averageProgress}%
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {group.students.length ? (
+                    <div className="divide-y divide-white/10">
+                      {group.students.map((student) => {
+                        const rank =
+                          rankedStudents.findIndex(
+                            (rankedStudent) => rankedStudent.id === student.id,
+                          ) + 1;
+
+                        return (
+                          <button
+                            key={student.id}
+                            className="group grid w-full gap-4 p-4 text-left transition hover:bg-white/[0.04] md:grid-cols-[44px_1fr_130px]"
+                            type="button"
+                            onClick={() => {
+                              setSelectedStudent(student);
+                              setEditingStudent(null);
+                            }}
+                          >
+                            <span className="grid size-11 place-items-center rounded-xl border border-amber-300/20 bg-amber-300/10 text-sm font-black text-amber-200">
+                              {rank}
+                            </span>
+
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-base font-black text-white">
+                                  {student.firstName} {student.lastName}
+                                </h3>
+                                <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-bold text-zinc-300">
+                                  {student.level}
+                                </span>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-2 text-sm font-semibold text-zinc-500">
+                                <span>{student.age} yosh</span>
+                                <span className="text-zinc-700">/</span>
+                                <span>{student.progress}% progress</span>
+                              </div>
+                              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                                <div
+                                  className="h-full rounded-full bg-amber-300"
+                                  style={{ width: `${student.progress}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="md:text-right">
+                              <strong className="block text-2xl font-black leading-none text-amber-200">
+                                {student.coins.toLocaleString("en-US")}
+                              </strong>
+                              <span className="mt-1 block text-xs font-bold text-zinc-500">
+                                coin ball
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center">
+                      <p className="font-bold text-white">
+                        {searchValue.trim()
+                          ? "Mos o'quvchi yo'q"
+                          : "Hozircha o'quvchi yo'q"}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-500">
+                        Yangi o'quvchi qo'shilsa, tanlangan yo'nalish kartasida
+                        ko'rinadi.
+                      </p>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          ) : (
           <div className="mt-6 grid gap-4">
             {filteredStudents.map((student, index) => (
               <button
@@ -1472,8 +1815,95 @@ function CoinsPage({
               </div>
             ) : null}
           </div>
+          )}
         </div>
       </section>
+
+      {isAddStudentOpen ? (
+        <div
+          className="coin-modal-backdrop fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setIsAddStudentOpen(false)}
+        >
+          <div
+            className="coin-modal-panel relative max-h-[calc(100svh-32px)] w-[min(760px,100%)] overflow-y-auto rounded-2xl border border-white/10 bg-[#111318] shadow-2xl shadow-black/60"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <CoinWatermark className="pointer-events-none absolute -bottom-24 -right-20 size-80 text-[#c6f24e] opacity-[0.055]" />
+            <div className="relative flex items-start justify-between gap-4 border-b border-white/10 p-5 sm:p-6">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#c6f24e]/20 bg-[#c6f24e]/10 px-3 py-1 text-xs font-black uppercase text-[#c6f24e]">
+                  <UserPlus size={15} />
+                  Yangi o'quvchi
+                </span>
+                <h2 className="mt-4 text-2xl font-black text-white">
+                  O'quvchi ma'lumotlari
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                  Saqlangandan keyin o'quvchi umumiy coin ro'yxatiga qo'shiladi.
+                </p>
+              </div>
+
+              <button
+                className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white"
+                type="button"
+                aria-label="Oynani yopish"
+                onClick={() => setIsAddStudentOpen(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="relative grid gap-4 p-5 sm:p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {studentFormFields.map(([field, label, inputType]) => (
+                  <label
+                    key={field}
+                    className="grid gap-2 text-sm font-semibold text-white"
+                  >
+                    {label}
+                    <StudentFormControl
+                      field={field}
+                      inputType={inputType}
+                      value={newStudent[field] as string | number}
+                      onChange={(value) => {
+                        setNewStudent({
+                          ...newStudent,
+                          [field]: value,
+                        });
+                        setAddStudentError("");
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              {addStudentError ? (
+                <p className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm font-semibold text-red-200">
+                  {addStudentError}
+                </p>
+              ) : null}
+
+              <div className="grid gap-2 sm:grid-cols-[1fr_1fr]">
+                <button
+                  className="h-12 rounded-xl border border-white/10 bg-white/[0.04] font-bold text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+                  type="button"
+                  onClick={() => setIsAddStudentOpen(false)}
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#739b2f] font-black text-white transition hover:bg-[#82aa38]"
+                  type="button"
+                  onClick={handleAddStudent}
+                >
+                  <UserPlus size={19} />
+                  Qo'shish
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {selectedStudent ? (
         <div
@@ -1530,37 +1960,20 @@ function CoinsPage({
               {editingStudent ? (
                 <div className="grid gap-4">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {[
-                      ["firstName", "Ism", "text"],
-                      ["lastName", "Familiya", "text"],
-                      ["age", "Yosh", "number"],
-                      ["phone", "Telefon", "text"],
-                      ["direction", "Yo'nalish", "text"],
-                      ["level", "Level", "text"],
-                      ["joinedAt", "Qabul qilingan", "text"],
-                      ["coins", "Coin ball", "number"],
-                      ["progress", "Progress", "number"],
-                    ].map(([field, label, inputType]) => (
+                    {studentFormFields.map(([field, label, inputType]) => (
                       <label
                         key={field}
                         className="grid gap-2 text-sm font-semibold text-white"
                       >
                         {label}
-                        <input
-                          className="h-11 rounded-xl border border-white/10 bg-[#0f1116] px-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-300/45 focus:ring-4 focus:ring-amber-300/10"
-                          type={inputType}
-                          value={
-                            editingStudent[field as keyof CoinStudent] as
-                              | string
-                              | number
-                          }
-                          onChange={(event) =>
+                        <StudentFormControl
+                          field={field}
+                          inputType={inputType}
+                          value={editingStudent[field] as string | number}
+                          onChange={(value) =>
                             setEditingStudent({
                               ...editingStudent,
-                              [field]:
-                                inputType === "number"
-                                  ? Number(event.target.value)
-                                  : event.target.value,
+                              [field]: value,
                             })
                           }
                         />
