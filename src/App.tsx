@@ -15,6 +15,7 @@ import {
   Laptop,
   Layers3,
   LogOut,
+  MapPin,
   MonitorSmartphone,
   Phone,
   Presentation,
@@ -22,12 +23,22 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  Trash2,
   UserPlus,
   UsersRound,
   X,
   Zap,
   type LucideIcon,
 } from "lucide-react";
+
+import {
+  fetchCoinStudents,
+  deleteCoinStudent,
+  insertCoinStudent,
+  updateCoinStudent,
+  type CoinStudent,
+} from "./coinStudentsApi";
+import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 type NavItem = {
   label: string;
@@ -48,19 +59,6 @@ type Advantage = {
   icon: LucideIcon;
 };
 
-type CoinStudent = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  age: number;
-  phone: string;
-  direction: string;
-  coins: number;
-  level: string;
-  progress: number;
-  joinedAt: string;
-};
-
 type TeacherCredential = {
   login: string;
   password: string;
@@ -73,6 +71,7 @@ type TeacherSession = {
   login: string;
   name: string;
   createdAt: number;
+  provider?: "local" | "supabase";
 };
 
 type StudentFieldType = "text" | "number" | "select" | "date";
@@ -152,28 +151,28 @@ const courses: Course[] = [
     description:
       "HTML, CSS, JavaScript va React orqali sayt va web ilovalar yaratish.",
     icon: MonitorSmartphone,
-    tone: "text-sky-300 bg-sky-400/10 border-sky-300/15",
+    tone: "text-cyan-200 bg-cyan-300/10 border-cyan-200/20",
   },
   {
     title: "Backend dasturlash",
     description:
       "Server, ma'lumotlar bazasi va API bilan ishlash asoslarini o'rganish.",
     icon: Layers3,
-    tone: "text-emerald-300 bg-emerald-400/10 border-emerald-300/15",
+    tone: "text-emerald-200 bg-emerald-300/10 border-emerald-200/20",
   },
   {
     title: "IT Kids",
     description:
       "Bolalar uchun kompyuter savodxonligi, mantiq va qiziqarli kodlash.",
     icon: Gamepad2,
-    tone: "text-amber-300 bg-amber-400/10 border-amber-300/15",
+    tone: "text-amber-200 bg-amber-300/10 border-amber-200/20",
   },
   {
     title: "Robototexnika",
     description:
       "Robot qurilmalari, sensorlar va elektronika bilan amaliy mashg'ulotlar.",
     icon: Bot,
-    tone: "text-violet-300 bg-violet-400/10 border-violet-300/15",
+    tone: "text-rose-200 bg-rose-300/10 border-rose-200/20",
   },
 ];
 
@@ -220,6 +219,13 @@ const results = [
   },
 ];
 
+const academyLocation = {
+  label: "Bizning manzil",
+  coordinates: "Sergeli Filiali",
+  mapsUrl:
+    "https://www.google.com/maps/search/?api=1&query=41.228333,69.210106",
+};
+
 const STUDENTS_STORAGE_KEY = "codetime_coin_students";
 const AUTH_SESSION_STORAGE_KEY = "codetime_teacher_session";
 const directionOptions = [
@@ -244,6 +250,10 @@ const teacherCredentials: TeacherCredential[] = [
 ];
 
 function getStoredTeacherSession(): TeacherSession | null {
+  if (isSupabaseConfigured) {
+    return null;
+  }
+
   const savedSession = window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY);
 
   if (!savedSession) {
@@ -278,6 +288,7 @@ function saveTeacherSession(teacher: TeacherCredential) {
     login: teacher.login,
     name: teacher.name,
     createdAt: Date.now(),
+    provider: "local",
   };
 
   window.sessionStorage.setItem(
@@ -290,6 +301,20 @@ function saveTeacherSession(teacher: TeacherCredential) {
 
 function clearTeacherSession() {
   window.sessionStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+}
+
+function getTeacherEmail(login: string) {
+  const normalizedLogin = login.trim().toLowerCase();
+
+  return normalizedLogin.includes("@")
+    ? normalizedLogin
+    : `${normalizedLogin}@codetime.local`;
+}
+
+function getTeacherName(loginOrEmail: string) {
+  const login = loginOrEmail.split("@")[0] || "Ustoz";
+
+  return login.charAt(0).toUpperCase() + login.slice(1);
 }
 
 function getCurrentJoinedAt() {
@@ -321,7 +346,10 @@ function createEmptyStudent(): CoinStudent {
   };
 }
 
-function createStudentId(student: CoinStudent, existingStudents: CoinStudent[]) {
+function createStudentId(
+  student: CoinStudent,
+  existingStudents: CoinStudent[],
+) {
   const baseId =
     `${student.firstName}-${student.lastName}`
       .trim()
@@ -331,7 +359,9 @@ function createStudentId(student: CoinStudent, existingStudents: CoinStudent[]) 
   let nextId = baseId;
   let index = 2;
 
-  while (existingStudents.some((existingStudent) => existingStudent.id === nextId)) {
+  while (
+    existingStudents.some((existingStudent) => existingStudent.id === nextId)
+  ) {
     nextId = `${baseId}-${index}`;
     index += 1;
   }
@@ -510,13 +540,13 @@ function Header() {
   }, [isCoursesMenuOpen]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#090a0d]/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-20 w-[min(1328px,calc(100%-48px))] items-center gap-5">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-[radial-gradient(circle_at_bottom_right,rgba(45,212,191,0.12),transparent_34%),linear-gradient(90deg,rgba(11,15,18,0.94),rgba(11,15,18,0.88))] backdrop-blur-xl">
+      <div className="mx-auto flex h-18 w-[min(1328px,calc(100%-32px))] items-center gap-4 md:h-20 md:w-[min(1328px,calc(100%-48px))] md:gap-5">
         <a
           href="/"
           className="flex items-center gap-3 font-semibold text-white"
         >
-          <span className="grid size-11 place-items-center rounded-xl bg-[#c6f24e] text-[#090a0d]">
+          <span className="grid size-11 place-items-center rounded-xl bg-[#2dd4bf] text-[#07100f] shadow-[0_12px_30px_rgba(45,212,191,0.18)]">
             <Code2 size={23} />
           </span>
           <span className="text-xl">CodeTime</span>
@@ -538,14 +568,14 @@ function Header() {
                       size={16}
                       className={`transition duration-200 ${
                         isCoursesMenuOpen
-                          ? "rotate-180 text-[#c6f24e]"
+                          ? "rotate-180 text-[#2dd4bf]"
                           : "text-zinc-500"
                       }`}
                     />
                   </button>
 
                   <div
-                    className={`fixed left-0 right-0 top-20 h-[40svh] min-h-[330px] border-y border-white/10 bg-[#0d0f13]/98 shadow-2xl shadow-black/45 backdrop-blur-xl transition duration-200 ${
+                    className={`fixed left-0 right-0 top-20 h-[40svh] min-h-[330px] border-y border-white/10 bg-[#101719]/98 shadow-2xl shadow-black/45 backdrop-blur-xl transition duration-200 ${
                       isCoursesMenuOpen
                         ? "pointer-events-auto translate-y-0 opacity-100"
                         : "pointer-events-none translate-y-[-8px] opacity-0"
@@ -553,7 +583,7 @@ function Header() {
                   >
                     <div className="mx-auto grid h-full w-[min(1328px,calc(100%-48px))] gap-6 py-6 lg:grid-cols-[1fr_360px]">
                       <div className="min-h-0">
-                        <span className="text-xs font-black uppercase text-[#c6f24e]">
+                        <span className="text-xs font-black uppercase text-[#2dd4bf]">
                           Kurslar
                         </span>
                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -564,7 +594,7 @@ function Header() {
                               <a
                                 key={course.title}
                                 href="#courses"
-                                className="flex items-center gap-4 rounded-2xl border border-white/8 bg-white/[0.03] p-4 transition hover:border-[#c6f24e]/25 hover:bg-white/[0.06]"
+                                className="flex items-center gap-4 rounded-2xl border border-white/8 bg-white/[0.035] p-4 transition hover:border-[#2dd4bf]/30 hover:bg-white/[0.07]"
                               >
                                 <span
                                   className={`grid size-13 shrink-0 place-items-center rounded-2xl border ${course.tone}`}
@@ -586,8 +616,8 @@ function Header() {
                       </div>
 
                       <div className="flex items-center">
-                        <div className="w-full rounded-2xl border border-white/10 bg-[#15171d] p-5">
-                          <span className="grid size-12 place-items-center rounded-xl bg-[#c6f24e]/10 text-[#c6f24e]">
+                        <div className="w-full rounded-2xl border border-white/10 bg-[#151d1f] p-5">
+                          <span className="grid size-12 place-items-center rounded-xl bg-[#2dd4bf]/10 text-[#2dd4bf]">
                             <Phone size={23} />
                           </span>
                           <h3 className="mt-5 text-2xl font-black text-white">
@@ -600,17 +630,17 @@ function Header() {
 
                           <div className="mt-5 grid gap-2">
                             <input
-                              className="h-11 rounded-xl border border-white/10 bg-[#0f1116] px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-[#c6f24e] focus:ring-4 focus:ring-[#c6f24e]/10"
+                              className="h-11 rounded-xl border border-white/10 bg-[#0c1214] px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/10"
                               placeholder="Ismingiz"
                               type="text"
                             />
                             <input
-                              className="h-11 rounded-xl border border-white/10 bg-[#0f1116] px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-[#c6f24e] focus:ring-4 focus:ring-[#c6f24e]/10"
+                              className="h-11 rounded-xl border border-white/10 bg-[#0c1214] px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/10"
                               placeholder="+998 90 123 45 67"
                               type="tel"
                             />
                             <button
-                              className="h-11 rounded-xl bg-[#739b2f] px-4 text-sm font-black text-white transition hover:bg-[#82aa38]"
+                              className="h-11 rounded-xl bg-[#0f9f8e] px-4 text-sm font-black text-white transition hover:bg-[#14b8a6]"
                               type="button"
                             >
                               Yuborish
@@ -639,9 +669,9 @@ function Header() {
         <a
           href="https://t.me/codetime_admin"
           target="_blank"
-          className="ml-auto inline-flex h-12 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-white transition hover:border-[#c6f24e]/45 hover:bg-white/[0.09]"
+          className="ml-auto inline-flex h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-sm font-semibold text-white transition hover:border-[#2dd4bf]/45 hover:bg-white/[0.09] sm:h-12 sm:px-4"
         >
-          <span className="text-[#c6f24e]">
+          <span className="text-[#2dd4bf]">
             <TelegramIcon size={18} />
           </span>
           Online ta'lim
@@ -668,7 +698,7 @@ function SectionHeading({
         align === "center" ? "mx-auto mb-10 max-w-2xl text-center" : "max-w-xl"
       }
     >
-      <span className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase text-[#c6f24e]">
+      <span className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase text-[#2dd4bf]">
         <Zap size={15} />
         {kicker}
       </span>
@@ -686,28 +716,28 @@ function Hero({ onOpenCoinLogin }: { onOpenCoinLogin: () => void }) {
   return (
     <section
       id="top"
-      className="relative overflow-hidden border-b border-white/8"
+      className="relative overflow-hidden border-b border-white/8 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.14),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_80%_20%,rgba(251,191,36,0.08),transparent_30%)]"
     >
-      <div className="mx-auto grid min-h-[calc(100svh-80px)] w-[min(1328px,calc(100%-48px))] items-center gap-10 py-14 lg:grid-cols-[1.02fr_0.98fr] lg:py-20">
+      <div className="mx-auto grid min-h-[calc(100svh-72px)] w-[min(1328px,calc(100%-32px))] items-center gap-8 py-10 md:min-h-[calc(100svh-80px)] md:w-[min(1328px,calc(100%-48px))] md:gap-10 md:py-14 lg:grid-cols-[1.02fr_0.98fr] lg:py-20">
         <div>
-          <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#c6f24e]/25 bg-[#c6f24e]/10 px-4 py-2 text-sm font-bold text-[#c6f24e]">
+          <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#2dd4bf]/25 bg-[#2dd4bf]/10 px-4 py-2 text-sm font-bold text-[#67e8f9]">
             <Sparkles size={17} />
             Zamonaviy IT ta'lim markazi
           </span>
 
-          <h1 className="max-w-3xl text-5xl font-black leading-[1.02] text-white md:text-6xl">
+          <h1 className="max-w-3xl text-4xl font-black leading-[1.05] text-white sm:text-5xl md:text-6xl">
             Dasturlashni amaliy tarzda o'rganing
           </h1>
 
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">
+          <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400 sm:text-lg sm:leading-8">
             CodeTime IT Academy bolalar va kattalar uchun zamonaviy IT
             ko'nikmalarini sodda, tushunarli va amaliy darslar orqali o'rgatadi.
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row md:mt-8">
             <a
               href="#contact"
-              className="group inline-flex h-13 items-center justify-center gap-2 rounded-xl border border-[#a9cf54]/25 bg-[#739b2f] px-6 font-bold text-white shadow-[0_14px_28px_rgba(115,155,47,0.12)] transition duration-300 hover:-translate-y-0.5 hover:border-[#bddf69]/45 hover:bg-[#82aa38] hover:shadow-[0_18px_38px_rgba(130,170,56,0.18)]"
+              className="group inline-flex h-13 items-center justify-center gap-2 rounded-xl border border-[#5eead4]/25 bg-[#0f9f8e] px-6 font-bold text-white shadow-[0_14px_28px_rgba(20,184,166,0.16)] transition duration-300 hover:-translate-y-0.5 hover:border-[#99f6e4]/45 hover:bg-[#14b8a6] hover:shadow-[0_18px_38px_rgba(20,184,166,0.22)]"
             >
               Kursga yozilish
               <ArrowRight
@@ -728,7 +758,7 @@ function Hero({ onOpenCoinLogin }: { onOpenCoinLogin: () => void }) {
             </button>
           </div>
 
-          <div className="mt-9 grid max-w-xl grid-cols-3 gap-3">
+          <div className="mt-8 grid max-w-xl grid-cols-3 gap-2 sm:gap-3 md:mt-9">
             {[
               ["450+", "bitiruvchi"],
               ["4", "yo'nalish"],
@@ -736,9 +766,9 @@ function Hero({ onOpenCoinLogin }: { onOpenCoinLogin: () => void }) {
             ].map(([value, label]) => (
               <div
                 key={label}
-                className="rounded-2xl border border-white/10 bg-white/[0.05] p-4"
+                className="rounded-2xl border border-white/10 bg-white/[0.055] p-3 sm:p-4"
               >
-                <strong className="block text-2xl font-black leading-none text-[#c6f24e]">
+                <strong className="block text-xl font-black leading-none text-[#2dd4bf] sm:text-2xl">
                   {value}
                 </strong>
                 <span className="mt-2 block text-sm font-medium text-zinc-400">
@@ -752,13 +782,13 @@ function Hero({ onOpenCoinLogin }: { onOpenCoinLogin: () => void }) {
         <div className="relative">
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/40">
             <img
-              className="h-[360px] w-full object-cover md:h-[480px]"
+              className="h-[280px] w-full object-cover sm:h-[360px] md:h-[480px]"
               src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=85"
               alt="Kompyuterda birga dars qilayotgan talabalar"
             />
           </div>
-          <div className="absolute bottom-4 left-4 right-4 grid gap-3 rounded-2xl border border-white/10 bg-[#111318]/90 p-4 shadow-2xl backdrop-blur md:left-auto md:w-72">
-            <span className="inline-flex items-center gap-2 text-xs font-bold uppercase text-[#c6f24e]">
+          <div className="absolute bottom-3 left-3 right-3 grid gap-2 rounded-2xl border border-white/10 bg-[#101719]/92 p-3 shadow-2xl backdrop-blur sm:bottom-4 sm:left-4 sm:right-4 sm:gap-3 sm:p-4 md:left-auto md:w-72">
+            <span className="inline-flex items-center gap-2 text-xs font-bold uppercase text-[#2dd4bf]">
               <CalendarDays size={15} />
               Qabul ochiq
             </span>
@@ -777,8 +807,8 @@ function Hero({ onOpenCoinLogin }: { onOpenCoinLogin: () => void }) {
 
 function CoursesSection() {
   return (
-    <section id="courses" className="py-18 md:py-24">
-      <div className="mx-auto w-[min(1328px,calc(100%-48px))]">
+    <section id="courses" className="py-14 md:py-24">
+      <div className="mx-auto w-[min(1328px,calc(100%-32px))] md:w-[min(1328px,calc(100%-48px))]">
         <SectionHeading
           kicker="Yo'nalishlar"
           title="O'zingizga mos IT yo'nalishini tanlang"
@@ -792,7 +822,7 @@ function CoursesSection() {
             return (
               <article
                 key={course.title}
-                className="group rounded-2xl border border-white/10 bg-[#15171d] p-6 transition hover:-translate-y-1 hover:border-[#c6f24e]/35 hover:bg-[#1b1e25]"
+                className="group rounded-2xl border border-white/10 bg-[#151d1f] p-5 transition hover:-translate-y-1 hover:border-[#2dd4bf]/35 hover:bg-[#1b2426] sm:p-6"
               >
                 <div
                   className={`mb-6 grid size-14 place-items-center rounded-2xl border ${course.tone}`}
@@ -820,9 +850,9 @@ function AdvantagesSection() {
   return (
     <section
       id="advantages"
-      className="border-y border-white/8 bg-[#101216] py-18 md:py-24"
+      className="border-y border-white/8 bg-[#111719] py-14 md:py-24"
     >
-      <div className="mx-auto grid w-[min(1328px,calc(100%-48px))] gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+      <div className="mx-auto grid w-[min(1328px,calc(100%-32px))] gap-8 md:w-[min(1328px,calc(100%-48px))] lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <SectionHeading
           align="left"
           kicker="Nega CodeTime?"
@@ -837,9 +867,9 @@ function AdvantagesSection() {
             return (
               <article
                 key={item.title}
-                className="grid gap-4 rounded-2xl border border-white/10 bg-[#15171d] p-5 sm:grid-cols-[56px_1fr]"
+                className="grid gap-4 rounded-2xl border border-white/10 bg-[#151d1f] p-5 transition hover:border-[#2dd4bf]/25 hover:bg-[#1b2426] sm:grid-cols-[56px_1fr]"
               >
-                <span className="grid size-14 place-items-center rounded-2xl bg-[#c6f24e]/10 text-[#c6f24e]">
+                <span className="grid size-14 place-items-center rounded-2xl bg-[#2dd4bf]/10 text-[#2dd4bf]">
                   <Icon size={26} />
                 </span>
                 <div>
@@ -859,8 +889,8 @@ function AdvantagesSection() {
 
 function ResultsSection() {
   return (
-    <section id="results" className="py-18 md:py-24">
-      <div className="mx-auto w-[min(1328px,calc(100%-48px))]">
+    <section id="results" className="py-14 md:py-24">
+      <div className="mx-auto w-[min(1328px,calc(100%-32px))] md:w-[min(1328px,calc(100%-48px))]">
         <div className="grid gap-4 md:grid-cols-3">
           {results.map((item) => {
             const Icon = item.icon;
@@ -868,7 +898,7 @@ function ResultsSection() {
             return (
               <article
                 key={item.label}
-                className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#15171d] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#c6f24e]/25 hover:bg-[#1b1e25] hover:shadow-[0_20px_42px_rgba(0,0,0,0.28)]"
+                className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#151d1f] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#2dd4bf]/25 hover:bg-[#1b2426] hover:shadow-[0_20px_42px_rgba(0,0,0,0.28)]"
               >
                 <div className="flex items-start justify-between gap-4">
                   <span
@@ -888,7 +918,7 @@ function ResultsSection() {
                   {item.description}
                 </p>
                 <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-                  <div className="h-full w-2/3 rounded-full bg-[#c6f24e] transition duration-300 group-hover:w-full" />
+                  <div className="h-full w-2/3 rounded-full bg-[#2dd4bf] transition duration-300 group-hover:w-full" />
                 </div>
               </article>
             );
@@ -901,8 +931,8 @@ function ResultsSection() {
 
 function MentorsSection() {
   return (
-    <section className="border-y border-white/8 bg-[#101216] py-18 md:py-24">
-      <div className="mx-auto grid w-[min(1328px,calc(100%-48px))] gap-10 lg:grid-cols-[1fr_380px] lg:items-center">
+    <section className="border-y border-white/8 bg-[#111719] py-14 md:py-24">
+      <div className="mx-auto grid w-[min(1328px,calc(100%-32px))] gap-8 md:w-[min(1328px,calc(100%-48px))] lg:grid-cols-[1fr_380px] lg:items-center">
         <SectionHeading
           align="left"
           kicker="Mentorlar"
@@ -910,8 +940,8 @@ function MentorsSection() {
           text="O'quvchi dars davomida kod yozadi, savol beradi va xatolarini ustoz bilan birga tahlil qiladi."
         />
 
-        <article className="rounded-2xl border border-white/10 bg-[#15171d] p-7">
-          <span className="grid size-15 place-items-center rounded-2xl bg-[#c6f24e]/10 text-[#c6f24e]">
+        <article className="rounded-2xl border border-white/10 bg-[#151d1f] p-6 sm:p-7">
+          <span className="grid size-15 place-items-center rounded-2xl bg-[#2dd4bf]/10 text-[#2dd4bf]">
             <Presentation size={30} />
           </span>
           <h3 className="mt-6 text-2xl font-bold text-white">
@@ -933,8 +963,8 @@ function ContactSection() {
   const selectedCourseLabel = selectedCourse || "Kursni tanlang";
 
   return (
-    <section id="contact" className="py-18 pb-28 md:py-24">
-      <div className="mx-auto grid w-[min(1328px,calc(100%-48px))] gap-10 lg:grid-cols-[0.95fr_1.05fr]">
+    <section id="contact" className="py-14 pb-28 md:py-24">
+      <div className="mx-auto grid w-[min(1328px,calc(100%-32px))] gap-8 md:w-[min(1328px,calc(100%-48px))] lg:grid-cols-[0.95fr_1.05fr]">
         <div>
           <SectionHeading
             align="left"
@@ -949,7 +979,7 @@ function ContactSection() {
               target="_blank"
               className="inline-flex items-center gap-3 font-semibold text-white"
             >
-              <span className="grid size-11 place-items-center rounded-xl bg-[#c6f24e]/10 text-[#c6f24e]">
+              <span className="grid size-11 place-items-center rounded-xl bg-[#2dd4bf]/10 text-[#2dd4bf]">
                 <Phone size={20} />
               </span>
               +998 77 186 77 66
@@ -959,19 +989,46 @@ function ContactSection() {
               target="_blank"
               className="inline-flex items-center gap-3 font-semibold text-white"
             >
-              <span className="grid size-11 place-items-center rounded-xl bg-[#c6f24e]/10 text-[#c6f24e]">
+              <span className="grid size-11 place-items-center rounded-xl bg-[#2dd4bf]/10 text-[#2dd4bf]">
                 <TelegramIcon size={20} />
               </span>
               Telegram admin
             </a>
           </div>
+
+          <a
+            href={academyLocation.mapsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="group mt-6 grid gap-4 rounded-2xl border border-white/10 bg-[#151d1f] p-5 transition duration-300 hover:-translate-y-0.5 hover:border-[#2dd4bf]/35 hover:bg-[#1b2426] hover:shadow-[0_18px_38px_rgba(0,0,0,0.24)] sm:grid-cols-[56px_1fr_auto] sm:items-center"
+            aria-label={`${academyLocation.label} Google Mapsda ochish`}
+          >
+            <span className="grid size-14 place-items-center rounded-2xl border border-[#2dd4bf]/20 bg-[#2dd4bf]/10 text-[#2dd4bf] transition duration-300 group-hover:bg-[#2dd4bf]/15">
+              <MapPin size={26} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-lg font-black text-white">
+                {academyLocation.label}
+              </span>
+              <span className="mt-1 block text-sm leading-6 text-zinc-400">
+                Google Maps orqali manzilni ochish
+              </span>
+              <span className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-bold text-zinc-300">
+                {academyLocation.coordinates}
+              </span>
+            </span>
+            <span className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#2dd4bf] px-4 text-sm font-black text-[#07100f] transition group-hover:bg-[#5eead4]">
+              Ochish
+              <ArrowRight size={17} />
+            </span>
+          </a>
         </div>
 
-        <form className="grid gap-4 rounded-2xl border border-white/10 bg-[#15171d] p-6 shadow-2xl shadow-black/35">
+        <form className="grid gap-4 rounded-2xl border border-white/10 bg-[#151d1f] p-5 shadow-2xl shadow-black/35 sm:p-6">
           <label className="grid gap-2 text-sm font-semibold text-white">
             Ismingiz
             <input
-              className="h-12 rounded-xl border border-white/10 bg-[#0f1116] px-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-[#c6f24e] focus:ring-4 focus:ring-[#c6f24e]/10"
+              className="h-12 rounded-xl border border-white/10 bg-[#0c1214] px-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/10"
               placeholder="Masalan: Azizbek"
               type="text"
             />
@@ -980,7 +1037,7 @@ function ContactSection() {
           <label className="grid gap-2 text-sm font-semibold text-white">
             Telefon raqamingiz
             <input
-              className="h-12 rounded-xl border border-white/10 bg-[#0f1116] px-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-[#c6f24e] focus:ring-4 focus:ring-[#c6f24e]/10"
+              className="h-12 rounded-xl border border-white/10 bg-[#0c1214] px-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/10"
               placeholder="+998 90 123 45 67"
               type="tel"
             />
@@ -989,7 +1046,7 @@ function ContactSection() {
           <div className="relative grid gap-2 text-sm font-semibold text-white">
             Qiziqqan kurs
             <button
-              className="flex h-12 w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0f1116] px-4 text-left text-white outline-none transition hover:border-white/18 focus:border-[#c6f24e] focus:ring-4 focus:ring-[#c6f24e]/10"
+              className="flex h-12 w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0c1214] px-4 text-left text-white outline-none transition hover:border-white/18 focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/10"
               type="button"
               aria-expanded={isCourseMenuOpen}
               onClick={() => setIsCourseMenuOpen((isOpen) => !isOpen)}
@@ -1003,13 +1060,13 @@ function ContactSection() {
               </span>
               <ArrowRight
                 size={18}
-                className={`text-[#c6f24e] transition duration-300 ${
+                className={`text-[#2dd4bf] transition duration-300 ${
                   isCourseMenuOpen ? "rotate-90" : ""
                 }`}
               />
             </button>
             {isCourseMenuOpen ? (
-              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-20 overflow-hidden rounded-xl border border-white/10 bg-[#0f1116] p-2 shadow-2xl shadow-black/45">
+              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-20 overflow-hidden rounded-xl border border-white/10 bg-[#0c1214] p-2 shadow-2xl shadow-black/45">
                 {courses.map((course) => {
                   const Icon = course.icon;
                   const isSelected = selectedCourse === course.title;
@@ -1019,7 +1076,7 @@ function ContactSection() {
                       key={course.title}
                       className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition ${
                         isSelected
-                          ? "bg-[#c6f24e]/10 text-white"
+                          ? "bg-[#2dd4bf]/10 text-white"
                           : "text-zinc-400 hover:bg-white/[0.06] hover:text-white"
                       }`}
                       type="button"
@@ -1049,7 +1106,7 @@ function ContactSection() {
           </div>
 
           <button
-            className="mt-2 inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-[#c6f24e] px-6 font-bold text-[#090a0d] transition hover:bg-[#b7e83e]"
+            className="mt-2 inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-[#2dd4bf] px-6 font-bold text-[#07100f] transition hover:bg-[#5eead4]"
             type="button"
           >
             Ariza yuborish
@@ -1062,19 +1119,55 @@ function ContactSection() {
 }
 
 function BottomNavigation() {
+  const [activeHref, setActiveHref] = useState(navItems[0].href);
+
+  useEffect(() => {
+    const sectionIds = navItems.map((item) => item.href.replace("/#", ""));
+
+    function updateActiveSection() {
+      const scrollAnchor = window.scrollY + window.innerHeight * 0.42;
+      let nextActiveHref = navItems[0].href;
+
+      sectionIds.forEach((sectionId, index) => {
+        const section = document.getElementById(sectionId);
+
+        if (section && section.offsetTop <= scrollAnchor) {
+          nextActiveHref = navItems[index].href;
+        }
+      });
+
+      setActiveHref(nextActiveHref);
+    }
+
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("hashchange", updateActiveSection);
+
+    return () => {
+      window.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("hashchange", updateActiveSection);
+    };
+  }, []);
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-white/10 bg-[#090a0d]/95 px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-white/10 bg-[#0b0f12]/95 px-2 pb-[calc(6px+env(safe-area-inset-bottom))] pt-2 shadow-[0_-16px_36px_rgba(0,0,0,0.34)] backdrop-blur-xl md:hidden">
       {navItems.map((item) => {
         const Icon = item.icon;
+        const isActive = activeHref === item.href;
 
         return (
           <a
             key={item.href}
             href={item.href}
-            className="grid place-items-center gap-1 rounded-xl px-1 py-2 text-[11px] font-bold text-zinc-500 transition hover:text-[#c6f24e]"
+            aria-current={isActive ? "page" : undefined}
+            className={`grid min-w-0 place-items-center gap-1 rounded-xl px-1 py-2 text-[11px] font-bold transition ${
+              isActive
+                ? "bg-[#2dd4bf]/12 text-[#67e8f9] shadow-[inset_0_0_0_1px_rgba(103,232,249,0.18)]"
+                : "text-zinc-500 hover:text-[#2dd4bf]"
+            }`}
           >
             <Icon size={21} />
-            <span>{item.label}</span>
+            <span className="max-w-full truncate">{item.label}</span>
           </a>
         );
       })}
@@ -1087,25 +1180,26 @@ function TeacherLoginForm({
   onLogin,
 }: {
   onCancel?: () => void;
-  onLogin: (teacher: TeacherCredential) => void;
+  onLogin: (login: string, password: string) => Promise<string | null>;
 }) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleTeacherLogin() {
-    const teacher = teacherCredentials.find(
-      (credential) =>
-        credential.login.toLowerCase() === login.trim().toLowerCase() &&
-        credential.password === password.trim(),
-    );
+  async function handleTeacherLogin() {
+    setIsSubmitting(true);
+    setError("");
 
-    if (!teacher) {
-      setError("Login yoki parol noto'g'ri.");
-      return;
+    try {
+      const loginError = await onLogin(login, password);
+
+      if (loginError) {
+        setError(loginError);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onLogin(teacher);
   }
 
   return (
@@ -1120,7 +1214,7 @@ function TeacherLoginForm({
         Login
         <input
           autoComplete="username"
-          className="h-12 rounded-xl border border-white/10 bg-[#0f1116] px-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-[#c6f24e] focus:ring-4 focus:ring-[#c6f24e]/10"
+          className="h-12 rounded-xl border border-white/10 bg-[#0c1214] px-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/10"
           placeholder="Login kiriting"
           value={login}
           onChange={(event) => {
@@ -1134,7 +1228,7 @@ function TeacherLoginForm({
         Parol
         <input
           autoComplete="current-password"
-          className="h-12 rounded-xl border border-white/10 bg-[#0f1116] px-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-[#c6f24e] focus:ring-4 focus:ring-[#c6f24e]/10"
+          className="h-12 rounded-xl border border-white/10 bg-[#0c1214] px-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-[#2dd4bf] focus:ring-4 focus:ring-[#2dd4bf]/10"
           placeholder="Parol kiriting"
           type="password"
           value={password}
@@ -1166,10 +1260,11 @@ function TeacherLoginForm({
           </button>
         ) : null}
         <button
-          className="h-12 rounded-xl bg-[#739b2f] font-black text-white transition hover:bg-[#82aa38]"
+          className="h-12 rounded-xl bg-[#0f9f8e] font-black text-white transition hover:bg-[#14b8a6] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isSubmitting}
           type="submit"
         >
-          Kirish
+          {isSubmitting ? "Tekshirilmoqda..." : "Kirish"}
         </button>
       </div>
     </form>
@@ -1182,7 +1277,7 @@ function AuthModal({
   onStudentEnter,
 }: {
   onClose: () => void;
-  onLogin: (teacher: TeacherCredential) => void;
+  onLogin: (login: string, password: string) => Promise<string | null>;
   onStudentEnter: () => void;
 }) {
   const [mode, setMode] = useState<"choice" | "teacher">("choice");
@@ -1193,7 +1288,7 @@ function AuthModal({
       onClick={onClose}
     >
       <div
-        className="coin-modal-panel relative w-[min(520px,100%)] overflow-hidden rounded-2xl border border-white/10 bg-[#111318] p-6 shadow-2xl shadow-black/60"
+        className="coin-modal-panel relative w-[min(520px,100%)] overflow-hidden rounded-2xl border border-white/10 bg-[#101719] p-6 shadow-2xl shadow-black/60"
         onClick={(event) => event.stopPropagation()}
       >
         <CoinWatermark className="pointer-events-none absolute -bottom-24 -right-20 size-72 text-amber-200 opacity-[0.055]" />
@@ -1240,11 +1335,11 @@ function AuthModal({
             </button>
 
             <button
-              className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left transition hover:border-[#c6f24e]/30 hover:bg-white/[0.07]"
+              className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-left transition hover:border-[#2dd4bf]/30 hover:bg-white/[0.07]"
               type="button"
               onClick={() => setMode("teacher")}
             >
-              <span className="grid size-12 place-items-center rounded-xl bg-[#c6f24e]/10 text-[#c6f24e]">
+              <span className="grid size-12 place-items-center rounded-xl bg-[#2dd4bf]/10 text-[#2dd4bf]">
                 <Presentation size={24} />
               </span>
               <strong className="mt-4 block text-lg font-black text-white">
@@ -1269,15 +1364,15 @@ function AuthModal({
 function LoginPage({
   onLogin,
 }: {
-  onLogin: (teacher: TeacherCredential) => void;
+  onLogin: (login: string, password: string) => Promise<string | null>;
 }) {
   return (
     <section className="relative min-h-[calc(100svh-80px)] overflow-hidden py-10 md:py-16">
       <CoinWatermark className="pointer-events-none absolute -right-16 top-12 size-72 rotate-12 text-amber-200 opacity-[0.045] md:size-96" />
-      <CoinWatermark className="pointer-events-none absolute -left-24 bottom-20 size-80 -rotate-12 text-[#c6f24e] opacity-[0.035] md:size-[30rem]" />
+      <CoinWatermark className="pointer-events-none absolute -left-24 bottom-20 size-80 -rotate-12 text-[#2dd4bf] opacity-[0.035] md:size-[30rem]" />
 
       <div className="relative mx-auto grid min-h-[calc(100svh-180px)] w-[min(560px,calc(100%-48px))] place-items-center">
-        <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-[#111318] p-6 shadow-2xl shadow-black/50">
+        <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-[#101719] p-6 shadow-2xl shadow-black/50">
           <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs font-black uppercase text-amber-200">
             <ShieldCheck size={15} />
             Himoyalangan panel
@@ -1317,7 +1412,7 @@ function StudentFormControl({
   onChange: (value: string | number) => void;
 }) {
   const baseClassName =
-    "h-11 w-full rounded-xl border border-white/10 bg-[#0f1116] px-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-300/45 focus:ring-4 focus:ring-amber-300/10";
+    "h-11 w-full rounded-xl border border-white/10 bg-[#0c1214] px-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-300/45 focus:ring-4 focus:ring-amber-300/10";
 
   if (field === "direction" || field === "level") {
     const options = field === "direction" ? directionOptions : levelOptions;
@@ -1330,7 +1425,11 @@ function StudentFormControl({
           onChange={(event) => onChange(event.target.value)}
         >
           {options.map((option) => (
-            <option key={option} value={option} className="bg-[#111318] text-white">
+            <option
+              key={option}
+              value={option}
+              className="bg-[#101719] text-white"
+            >
               {option}
             </option>
           ))}
@@ -1349,9 +1448,7 @@ function StudentFormControl({
       max={field === "progress" ? 100 : undefined}
       placeholder={field === "phone" ? "+998 90 123 45 67" : undefined}
       type={inputType === "date" ? "date" : inputType}
-      value={
-        inputType === "date" ? getDateInputValue(String(value)) : value
-      }
+      value={inputType === "date" ? getDateInputValue(String(value)) : value}
       onChange={(event) =>
         onChange(
           inputType === "number"
@@ -1371,7 +1468,7 @@ function CoinsPage({
 }: {
   role: CoinRole;
   teacherName?: string;
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
   onTeacherLoginClick: () => void;
 }) {
   const [searchValue, setSearchValue] = useState("");
@@ -1399,6 +1496,9 @@ function CoinsPage({
     createEmptyStudent(),
   );
   const [addStudentError, setAddStudentError] = useState("");
+  const [studentsError, setStudentsError] = useState("");
+  const [isStudentsLoading, setIsStudentsLoading] =
+    useState(isSupabaseConfigured);
   const isTeacher = role === "teacher";
   const rankedStudents = [...students].sort(
     (studentA, studentB) => studentB.coins - studentA.coins,
@@ -1432,27 +1532,79 @@ function CoinsPage({
     };
   });
   const totalCoins = students.reduce((sum, student) => sum + student.coins, 0);
-  const averageCoins = students.length ? Math.round(totalCoins / students.length) : 0;
+  const averageCoins = students.length
+    ? Math.round(totalCoins / students.length)
+    : 0;
   const directionsCount = new Set(students.map((student) => student.direction))
     .size;
 
-  function handleSaveStudent() {
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadStudents() {
+      setIsStudentsLoading(true);
+      setStudentsError("");
+
+      try {
+        const remoteStudents = await fetchCoinStudents();
+
+        if (isMounted) {
+          setStudents(remoteStudents);
+        }
+      } catch {
+        if (isMounted) {
+          setStudentsError(
+            "Database bilan ulanishda xatolik. Supabase sozlamalarini tekshiring.",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsStudentsLoading(false);
+        }
+      }
+    }
+
+    loadStudents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function handleSaveStudent() {
     if (!isTeacher || !editingStudent) {
       return;
     }
 
     const normalizedStudent = normalizeStudent(editingStudent);
-    const updatedStudents = students.map((student) =>
-      student.id === normalizedStudent.id ? normalizedStudent : student,
-    );
+    setStudentsError("");
 
-    setStudents(updatedStudents);
-    window.localStorage.setItem(
-      STUDENTS_STORAGE_KEY,
-      JSON.stringify(updatedStudents),
-    );
-    setSelectedStudent(normalizedStudent);
-    setEditingStudent(null);
+    try {
+      const savedStudent = isSupabaseConfigured
+        ? await updateCoinStudent(normalizedStudent)
+        : normalizedStudent;
+      const updatedStudents = students.map((student) =>
+        student.id === savedStudent.id ? savedStudent : student,
+      );
+
+      setStudents(updatedStudents);
+
+      if (!isSupabaseConfigured) {
+        window.localStorage.setItem(
+          STUDENTS_STORAGE_KEY,
+          JSON.stringify(updatedStudents),
+        );
+      }
+
+      setSelectedStudent(savedStudent);
+      setEditingStudent(null);
+    } catch {
+      setStudentsError("O'quvchi ma'lumotlarini saqlashda xatolik yuz berdi.");
+    }
   }
 
   function handleOpenAddStudent() {
@@ -1465,7 +1617,7 @@ function CoinsPage({
     setIsAddStudentOpen(true);
   }
 
-  function handleAddStudent() {
+  async function handleAddStudent() {
     if (!isTeacher) {
       return;
     }
@@ -1487,26 +1639,79 @@ function CoinsPage({
       return;
     }
 
-    const updatedStudents = [...students, normalizedStudent];
+    try {
+      const savedStudent = isSupabaseConfigured
+        ? await insertCoinStudent(normalizedStudent)
+        : normalizedStudent;
+      const updatedStudents = [...students, savedStudent];
 
-    setStudents(updatedStudents);
-    window.localStorage.setItem(
-      STUDENTS_STORAGE_KEY,
-      JSON.stringify(updatedStudents),
+      setStudents(updatedStudents);
+
+      if (!isSupabaseConfigured) {
+        window.localStorage.setItem(
+          STUDENTS_STORAGE_KEY,
+          JSON.stringify(updatedStudents),
+        );
+      }
+
+      setSearchValue("");
+      setSelectedStudent(savedStudent);
+      setEditingStudent(null);
+      setIsAddStudentOpen(false);
+      setNewStudent(createEmptyStudent());
+      setAddStudentError("");
+      setStudentsError("");
+    } catch {
+      setAddStudentError(
+        "O'quvchini database'ga qo'shishda xatolik. Login yoki Supabase RLS sozlamasini tekshiring.",
+      );
+    }
+  }
+
+  async function handleDeleteStudent() {
+    if (!isTeacher || !selectedStudent) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `${selectedStudent.firstName} ${selectedStudent.lastName} o'chirilsinmi?`,
     );
-    setSearchValue("");
-    setSelectedStudent(normalizedStudent);
-    setEditingStudent(null);
-    setIsAddStudentOpen(false);
-    setNewStudent(createEmptyStudent());
-    setAddStudentError("");
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      if (isSupabaseConfigured) {
+        await deleteCoinStudent(selectedStudent.id);
+      }
+
+      const updatedStudents = students.filter(
+        (student) => student.id !== selectedStudent.id,
+      );
+
+      setStudents(updatedStudents);
+
+      if (!isSupabaseConfigured) {
+        window.localStorage.setItem(
+          STUDENTS_STORAGE_KEY,
+          JSON.stringify(updatedStudents),
+        );
+      }
+
+      setSelectedStudent(null);
+      setEditingStudent(null);
+      setStudentsError("");
+    } catch {
+      setStudentsError("O'quvchini o'chirishda xatolik yuz berdi.");
+    }
   }
 
   return (
     <>
       <section className="relative min-h-[calc(100svh-80px)] overflow-hidden py-10 md:py-16">
         <CoinWatermark className="pointer-events-none absolute -right-16 top-12 size-72 rotate-12 text-amber-200 opacity-[0.045] md:size-96" />
-        <CoinWatermark className="pointer-events-none absolute -left-24 bottom-28 size-80 -rotate-12 text-[#c6f24e] opacity-[0.035] md:size-[30rem]" />
+        <CoinWatermark className="pointer-events-none absolute -left-24 bottom-28 size-80 -rotate-12 text-[#2dd4bf] opacity-[0.035] md:size-[30rem]" />
 
         <div className="relative mx-auto w-[min(1328px,calc(100%-48px))]">
           <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
@@ -1520,7 +1725,7 @@ function CoinsPage({
             {isTeacher ? (
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-[#c6f24e]/20 bg-[#c6f24e]/10 px-4 text-sm font-bold text-[#c6f24e] transition hover:bg-[#c6f24e]/15"
+                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-[#2dd4bf]/20 bg-[#2dd4bf]/10 px-4 text-sm font-bold text-[#2dd4bf] transition hover:bg-[#2dd4bf]/15"
                   type="button"
                   onClick={handleOpenAddStudent}
                 >
@@ -1538,7 +1743,7 @@ function CoinsPage({
               </div>
             ) : (
               <button
-                className="inline-flex h-11 items-center gap-2 rounded-lg border border-[#c6f24e]/20 bg-[#c6f24e]/10 px-4 text-sm font-bold text-[#c6f24e] transition hover:bg-[#c6f24e]/15"
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-[#2dd4bf]/20 bg-[#2dd4bf]/10 px-4 text-sm font-bold text-[#2dd4bf] transition hover:bg-[#2dd4bf]/15"
                 type="button"
                 onClick={onTeacherLoginClick}
               >
@@ -1564,7 +1769,7 @@ function CoinsPage({
               <span
                 className={`mt-5 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-black ${
                   isTeacher
-                    ? "border-[#c6f24e]/25 bg-[#c6f24e]/10 text-[#c6f24e]"
+                    ? "border-[#2dd4bf]/25 bg-[#2dd4bf]/10 text-[#2dd4bf]"
                     : "border-white/10 bg-white/[0.04] text-zinc-400"
                 }`}
               >
@@ -1597,7 +1802,7 @@ function CoinsPage({
                 return (
                   <article
                     key={stat.label}
-                    className="rounded-2xl border border-white/10 bg-[#15171d] p-5"
+                    className="rounded-2xl border border-white/10 bg-[#151d1f] p-5"
                   >
                     <span className="grid size-11 place-items-center rounded-xl bg-amber-300/10 text-amber-200">
                       <Icon size={21} />
@@ -1614,7 +1819,7 @@ function CoinsPage({
             </div>
           </div>
 
-          <div className="mt-10 rounded-2xl border border-white/10 bg-[#101216] p-4 sm:p-5">
+          <div className="mt-10 rounded-2xl border border-white/10 bg-[#111719] p-4 sm:p-5">
             <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-center">
               <div>
                 <span className="text-sm font-bold uppercase text-amber-200">
@@ -1641,12 +1846,24 @@ function CoinsPage({
             </div>
           </div>
 
+          {isStudentsLoading ? (
+            <div className="mt-6 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-5 text-sm font-bold text-amber-100">
+              Database'dan o'quvchilar yuklanmoqda...
+            </div>
+          ) : null}
+
+          {studentsError ? (
+            <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-sm font-semibold text-red-100">
+              {studentsError}
+            </div>
+          ) : null}
+
           {isTeacher ? (
             <div className="mt-6 grid gap-5 xl:grid-cols-2">
               {studentGroups.map((group) => (
                 <article
                   key={group.direction}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-[#15171d]"
+                  className="overflow-hidden rounded-2xl border border-white/10 bg-[#151d1f]"
                 >
                   <div className="relative overflow-hidden border-b border-white/10 p-5">
                     <CoinWatermark className="pointer-events-none absolute -right-10 -top-14 size-44 text-amber-200 opacity-[0.05]" />
@@ -1659,7 +1876,7 @@ function CoinsPage({
                           {group.direction}
                         </h2>
                       </div>
-                      <span className="rounded-full border border-[#c6f24e]/20 bg-[#c6f24e]/10 px-3 py-1 text-sm font-black text-[#c6f24e]">
+                      <span className="rounded-full border border-[#2dd4bf]/20 bg-[#2dd4bf]/10 px-3 py-1 text-sm font-black text-[#2dd4bf]">
                         {group.students.length} o'quvchi
                       </span>
                     </div>
@@ -1757,64 +1974,64 @@ function CoinsPage({
               ))}
             </div>
           ) : (
-          <div className="mt-6 grid gap-4">
-            {filteredStudents.map((student, index) => (
-              <button
-                key={`${student.firstName}-${student.lastName}`}
-                className="group relative grid overflow-hidden gap-5 rounded-2xl border border-white/10 bg-[#15171d] p-5 text-left transition duration-300 hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-[#1b1e25] md:grid-cols-[56px_1fr_160px]"
-                type="button"
-                onClick={() => {
-                  setSelectedStudent(student);
-                  setEditingStudent(null);
-                }}
-              >
-                <CoinWatermark className="pointer-events-none absolute -right-8 -top-10 size-36 text-amber-200 opacity-[0.055] transition duration-300 group-hover:opacity-[0.09]" />
-                <span className="relative grid size-14 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-lg font-black text-amber-200">
-                  {index + 1}
-                </span>
+            <div className="mt-6 grid gap-4">
+              {filteredStudents.map((student, index) => (
+                <button
+                  key={`${student.firstName}-${student.lastName}`}
+                  className="group relative grid overflow-hidden gap-5 rounded-2xl border border-white/10 bg-[#151d1f] p-5 text-left transition duration-300 hover:-translate-y-0.5 hover:border-amber-300/30 hover:bg-[#1b2426] md:grid-cols-[56px_1fr_160px]"
+                  type="button"
+                  onClick={() => {
+                    setSelectedStudent(student);
+                    setEditingStudent(null);
+                  }}
+                >
+                  <CoinWatermark className="pointer-events-none absolute -right-8 -top-10 size-36 text-amber-200 opacity-[0.055] transition duration-300 group-hover:opacity-[0.09]" />
+                  <span className="relative grid size-14 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-lg font-black text-amber-200">
+                    {index + 1}
+                  </span>
 
-                <div className="relative">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-xl font-black text-white">
-                      {student.firstName} {student.lastName}
-                    </h2>
-                    <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-zinc-300">
-                      {student.level}
+                  <div className="relative">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="text-xl font-black text-white">
+                        {student.firstName} {student.lastName}
+                      </h2>
+                      <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-zinc-300">
+                        {student.level}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-sm font-semibold text-zinc-500">
+                      <span>{student.direction}</span>
+                      <span className="text-zinc-700">•</span>
+                      <span>{student.age} yosh</span>
+                    </div>
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                      <div
+                        className="h-full rounded-full bg-amber-300"
+                        style={{ width: `${student.progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="relative md:text-right">
+                    <strong className="block text-3xl font-black leading-none text-amber-200">
+                      {student.coins.toLocaleString("en-US")}
+                    </strong>
+                    <span className="mt-2 block text-sm font-bold text-zinc-500">
+                      coin ball
                     </span>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-sm font-semibold text-zinc-500">
-                    <span>{student.direction}</span>
-                    <span className="text-zinc-700">•</span>
-                    <span>{student.age} yosh</span>
-                  </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
-                    <div
-                      className="h-full rounded-full bg-amber-300"
-                      style={{ width: `${student.progress}%` }}
-                    />
-                  </div>
-                </div>
+                </button>
+              ))}
 
-                <div className="relative md:text-right">
-                  <strong className="block text-3xl font-black leading-none text-amber-200">
-                    {student.coins.toLocaleString("en-US")}
-                  </strong>
-                  <span className="mt-2 block text-sm font-bold text-zinc-500">
-                    coin ball
-                  </span>
+              {filteredStudents.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/12 bg-white/[0.03] p-8 text-center">
+                  <p className="font-bold text-white">O'quvchi topilmadi</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">
+                    Ism, familiya yoki yo'nalishni boshqacha yozib ko'ring.
+                  </p>
                 </div>
-              </button>
-            ))}
-
-            {filteredStudents.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/12 bg-white/[0.03] p-8 text-center">
-                <p className="font-bold text-white">O'quvchi topilmadi</p>
-                <p className="mt-2 text-sm leading-6 text-zinc-500">
-                  Ism, familiya yoki yo'nalishni boshqacha yozib ko'ring.
-                </p>
-              </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
           )}
         </div>
       </section>
@@ -1825,13 +2042,13 @@ function CoinsPage({
           onClick={() => setIsAddStudentOpen(false)}
         >
           <div
-            className="coin-modal-panel relative max-h-[calc(100svh-32px)] w-[min(760px,100%)] overflow-y-auto rounded-2xl border border-white/10 bg-[#111318] shadow-2xl shadow-black/60"
+            className="coin-modal-panel relative max-h-[calc(100svh-32px)] w-[min(760px,100%)] overflow-y-auto rounded-2xl border border-white/10 bg-[#101719] shadow-2xl shadow-black/60"
             onClick={(event) => event.stopPropagation()}
           >
-            <CoinWatermark className="pointer-events-none absolute -bottom-24 -right-20 size-80 text-[#c6f24e] opacity-[0.055]" />
+            <CoinWatermark className="pointer-events-none absolute -bottom-24 -right-20 size-80 text-[#2dd4bf] opacity-[0.055]" />
             <div className="relative flex items-start justify-between gap-4 border-b border-white/10 p-5 sm:p-6">
               <div>
-                <span className="inline-flex items-center gap-2 rounded-full border border-[#c6f24e]/20 bg-[#c6f24e]/10 px-3 py-1 text-xs font-black uppercase text-[#c6f24e]">
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#2dd4bf]/20 bg-[#2dd4bf]/10 px-3 py-1 text-xs font-black uppercase text-[#2dd4bf]">
                   <UserPlus size={15} />
                   Yangi o'quvchi
                 </span>
@@ -1892,7 +2109,7 @@ function CoinsPage({
                   Bekor qilish
                 </button>
                 <button
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#739b2f] font-black text-white transition hover:bg-[#82aa38]"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0f9f8e] font-black text-white transition hover:bg-[#14b8a6]"
                   type="button"
                   onClick={handleAddStudent}
                 >
@@ -1911,11 +2128,11 @@ function CoinsPage({
           onClick={() => setSelectedStudent(null)}
         >
           <div
-            className="coin-modal-panel relative w-[min(720px,100%)] overflow-hidden rounded-2xl border border-white/10 bg-[#111318] shadow-2xl shadow-black/60"
+            className="coin-modal-panel relative w-[min(720px,100%)] overflow-hidden rounded-2xl border border-white/10 bg-[#101719] shadow-2xl shadow-black/60"
             onClick={(event) => event.stopPropagation()}
           >
             <CoinWatermark className="pointer-events-none absolute -bottom-24 -right-20 size-80 text-amber-200 opacity-[0.06]" />
-            <CoinWatermark className="pointer-events-none absolute bottom-12 right-28 size-44 -rotate-12 text-[#c6f24e] opacity-[0.04]" />
+            <CoinWatermark className="pointer-events-none absolute bottom-12 right-28 size-44 -rotate-12 text-[#2dd4bf] opacity-[0.04]" />
             <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5 sm:p-6">
               <div className="flex items-start gap-4">
                 <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-lg font-black text-amber-200">
@@ -1934,13 +2151,23 @@ function CoinsPage({
 
               <div className="flex shrink-0 items-center gap-2">
                 {isTeacher ? (
-                  <button
-                    className="h-10 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-sm font-black text-amber-100 transition hover:bg-amber-300/15"
-                    type="button"
-                    onClick={() => setEditingStudent(selectedStudent)}
-                  >
-                    Tahrirlash
-                  </button>
+                  <>
+                    <button
+                      className="grid h-10 place-items-center rounded-xl border border-red-300/20 bg-red-400/10 px-3 text-sm font-black text-red-100 transition hover:bg-red-400/15"
+                      type="button"
+                      aria-label="O'quvchini o'chirish"
+                      onClick={handleDeleteStudent}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                    <button
+                      className="h-10 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-sm font-black text-amber-100 transition hover:bg-amber-300/15"
+                      type="button"
+                      onClick={() => setEditingStudent(selectedStudent)}
+                    >
+                      Tahrirlash
+                    </button>
+                  </>
                 ) : null}
                 <button
                   className="grid size-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white"
@@ -1990,7 +2217,7 @@ function CoinsPage({
                       Bekor qilish
                     </button>
                     <button
-                      className="h-12 rounded-xl bg-[#739b2f] font-black text-white transition hover:bg-[#82aa38]"
+                      className="h-12 rounded-xl bg-[#0f9f8e] font-black text-white transition hover:bg-[#14b8a6]"
                       type="button"
                       onClick={handleSaveStudent}
                     >
@@ -2056,7 +2283,7 @@ function CoinsPage({
 
 export function Footer() {
   return (
-    <footer className="border-t border-white/10 bg-[#101216] py-8">
+    <footer className="border-t border-white/10 bg-[#111719] py-8">
       <div className="mx-auto flex w-[min(1328px,calc(100%-48px))] flex-col gap-4 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
         <p>В©2026 CodeTime IT Academy. Barcha huquqlar ximoyalangan</p>
         <div className="flex gap-2">
@@ -2083,15 +2310,101 @@ function App() {
     () => getStoredTeacherSession(),
   );
 
-  function handleTeacherLogin(teacher: TeacherCredential) {
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+
+      if (user?.email) {
+        setTeacherSession({
+          login: user.email,
+          name:
+            typeof user.user_metadata.name === "string"
+              ? user.user_metadata.name
+              : getTeacherName(user.email),
+          createdAt: Date.now(),
+          provider: "supabase",
+        });
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user;
+
+      if (user?.email) {
+        setTeacherSession({
+          login: user.email,
+          name:
+            typeof user.user_metadata.name === "string"
+              ? user.user_metadata.name
+              : getTeacherName(user.email),
+          createdAt: Date.now(),
+          provider: "supabase",
+        });
+      } else {
+        setTeacherSession(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function handleTeacherLogin(login: string, password: string) {
+    if (isSupabaseConfigured && supabase) {
+      const email = getTeacherEmail(login);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password: password.trim(),
+      });
+
+      if (error || !data.user?.email) {
+        return "Login yoki parol noto'g'ri.";
+      }
+
+      setTeacherSession({
+        login: data.user.email,
+        name:
+          typeof data.user.user_metadata.name === "string"
+            ? data.user.user_metadata.name
+            : getTeacherName(data.user.email),
+        createdAt: Date.now(),
+        provider: "supabase",
+      });
+      setIsAuthModalOpen(false);
+      window.location.href = "/coins";
+
+      return null;
+    }
+
+    const teacher = teacherCredentials.find(
+      (credential) =>
+        credential.login.toLowerCase() === login.trim().toLowerCase() &&
+        credential.password === password.trim(),
+    );
+
+    if (!teacher) {
+      return "Login yoki parol noto'g'ri.";
+    }
+
     const session = saveTeacherSession(teacher);
 
     setTeacherSession(session);
     setIsAuthModalOpen(false);
     window.location.href = "/coins";
+
+    return null;
   }
 
-  function handleTeacherLogout() {
+  async function handleTeacherLogout() {
+    if (isSupabaseConfigured && supabase) {
+      await supabase.auth.signOut();
+    }
+
     clearTeacherSession();
     setTeacherSession(null);
     window.location.href = "/coins";
@@ -2103,7 +2416,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#090a0d] text-zinc-100">
+    <div className="min-h-screen bg-[#0b0f12] text-zinc-100">
       <Header />
       <main>
         {isCoinsPage ? (
@@ -2126,7 +2439,7 @@ function App() {
           </>
         )}
       </main>
-      <footer className="border-t border-white/10 bg-[#101216] py-8">
+      <footer className="border-t border-white/10 bg-[#111719] py-8">
         <div className="mx-auto flex w-[min(1328px,calc(100%-48px))] flex-col gap-4 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
           <p>©2026 CodeTime IT Academy. Barcha huquqlar ximoyalangan</p>
           <div className="flex gap-2">
